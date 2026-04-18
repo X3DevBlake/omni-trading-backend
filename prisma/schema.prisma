@@ -1,0 +1,160 @@
+// Omni Trading — Prisma schema
+// Identity: Sign-In With Ethereum (EIP-4361). No passwords, no PII.
+// Users are identified purely by their wallet address.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Works with Postgres (production) or SQLite (local dev).
+  // Switch to "sqlite" + file:./dev.db in your .env if you don't want to run Postgres locally.
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────
+// A user is just a wallet address. No email, no name, no password.
+// Everything else (watchlist, positions, preferences) is keyed off user.id.
+model User {
+  id            String   @id @default(cuid())
+  address       String   @unique       // lowercase 0x...
+  chainId       Int      @default(1)   // most recently connected chain
+  createdAt     DateTime @default(now())
+  lastSeenAt    DateTime @default(now())
+
+  // Optional display name chosen by the user
+  displayName   String?
+
+  watchlist     WatchlistItem[]
+  positions     PaperPosition[]
+  orders        PaperOrder[]
+  preferences   UserPreferences?
+  sessions      Session[]
+  quests        QuestProgress[]
+
+  @@index([address])
+}
+
+// Auth sessions. After SIWE verifies a signature, we mint a JWT. This table
+// lets us revoke tokens server-side if needed.
+model Session {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String   @unique          // sha256 of the JWT
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  revokedAt   DateTime?
+  userAgent   String?
+  ipAddress   String?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// SIWE replay-attack prevention — each issued nonce used exactly once.
+model SiweNonce {
+  nonce       String   @id
+  address     String?                    // set once the nonce is claimed
+  createdAt   DateTime @default(now())
+  consumedAt  DateTime?
+
+  @@index([createdAt])
+}
+
+// ─── Watchlist ────────────────────────────────────────────────────────────
+model WatchlistItem {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coinId      String                     // CoinGecko id e.g. "bitcoin"
+  symbol      String                     // "btc"
+  addedAt     DateTime @default(now())
+  position    Int      @default(0)        // display order
+
+  @@unique([userId, coinId])
+  @@index([userId])
+}
+
+// ─── Paper trading ────────────────────────────────────────────────────────
+// A position is an open or closed simulated trade. Prices/balances are in USD.
+model PaperPosition {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coinId        String                     // "bitcoin"
+  symbol        String                     // "btc"
+  side          PositionSide                // LONG or SHORT
+  size          Decimal      @db.Decimal(20, 8)  // coin units
+  entryPrice    Decimal      @db.Decimal(20, 8)
+  exitPrice     Decimal?     @db.Decimal(20, 8)
+  leverage      Decimal      @default(1) @db.Decimal(5, 2)
+  liquidationPrice Decimal?  @db.Decimal(20, 8)
+  openedAt      DateTime     @default(now())
+  closedAt      DateTime?
+  realizedPnl   Decimal?     @db.Decimal(20, 8)
+  status        PositionStatus @default(OPEN)
+
+  @@index([userId, status])
+}
+
+enum PositionSide { LONG SHORT }
+enum PositionStatus { OPEN CLOSED LIQUIDATED }
+
+// A log of every order attempt. Filled orders create or modify positions.
+model PaperOrder {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coinId        String
+  symbol        String
+  side          OrderSide
+  type          OrderType
+  quantity      Decimal      @db.Decimal(20, 8)
+  price         Decimal?     @db.Decimal(20, 8)   // null for market orders
+  filledAt      DateTime?
+  fillPrice     Decimal?     @db.Decimal(20, 8)
+  status        OrderStatus  @default(PENDING)
+  createdAt     DateTime     @default(now())
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+enum OrderSide { BUY SELL }
+enum OrderType { MARKET LIMIT STOP }
+enum OrderStatus { PENDING FILLED CANCELLED REJECTED }
+
+// ─── Preferences ──────────────────────────────────────────────────────────
+model UserPreferences {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  theme           String   @default("default")    // future dark/light variants
+  defaultView     String   @default("markets")
+  defaultPair     String   @default("BTC-USD")
+  showPortfolioBalances Boolean @default(true)
+  notificationsEnabled  Boolean @default(true)
+  reducedMotion         Boolean @default(false)
+
+  updatedAt       DateTime @updatedAt
+}
+
+// ─── Quests / rewards progress ─────────────────────────────────────────────
+model QuestProgress {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questId       String                      // e.g. "first-swap", "10-trades", "ref-5"
+  progress      Int      @default(0)
+  goal          Int
+  completed     Boolean  @default(false)
+  completedAt   DateTime?
+  rewardClaimed Boolean  @default(false)
+  xp            Int      @default(0)
+
+  @@unique([userId, questId])
+  @@index([userId])
+}

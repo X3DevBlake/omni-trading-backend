@@ -1,0 +1,29 @@
+{
+  "name": "omni-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Omni Trading backend — Express + Prisma + Postgres for watchlists, paper trading, and user preferences.",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "siwe": "^2.3.2",
+    "viem": "^2.21.45",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  }
+}
