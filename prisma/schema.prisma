@@ -99,8 +99,15 @@ model PaperPosition {
   @@index([userId, status])
 }
 
-enum PositionSide { LONG SHORT }
-enum PositionStatus { OPEN CLOSED LIQUIDATED }
+enum PositionSide {
+  LONG
+  SHORT
+}
+enum PositionStatus {
+  OPEN
+  CLOSED
+  LIQUIDATED
+}
 
 // A log of every order attempt. Filled orders create or modify positions.
 model PaperOrder {
@@ -122,9 +129,21 @@ model PaperOrder {
   @@index([userId, createdAt])
 }
 
-enum OrderSide { BUY SELL }
-enum OrderType { MARKET LIMIT STOP }
-enum OrderStatus { PENDING FILLED CANCELLED REJECTED }
+enum OrderSide {
+  BUY
+  SELL
+}
+enum OrderType {
+  MARKET
+  LIMIT
+  STOP
+}
+enum OrderStatus {
+  PENDING
+  FILLED
+  CANCELLED
+  REJECTED
+}
 
 // ─── Preferences ──────────────────────────────────────────────────────────
 model UserPreferences {
